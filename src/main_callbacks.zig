@@ -184,7 +184,8 @@ pub export fn SDL_AppEvent(
     event: *c.SDL_Event,
 ) callconv(.c) c.SDL_AppResult {
     if (@hasDecl(root, "event")) {
-        const ret = root.event(@alignCast(@ptrCast(app_state)), events.Event.fromSdl(event.*)) catch |err| {
+        // TODO: Hack: because upstream doesn't have a full parity on its Event enum, we pass the raw C SDL_Event.
+        const ret = root.event(@alignCast(@ptrCast(app_state)), event) catch |err| {
             std.log.err("{s}", .{@errorName(err)});
             if (@errorReturnTrace()) |trace| {
                 std.debug.dumpStackTrace(trace.*);
