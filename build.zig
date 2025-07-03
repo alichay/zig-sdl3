@@ -47,19 +47,28 @@ pub fn build(b: *std.Build) !void {
         "c_sdl_install_build_config_h",
         "Additionally install 'SDL_build_config.h' when installing SDL (default: false)",
     ) orelse false;
+    const link_sdl_library = b.option(
+        bool,
+        "c_sdl_link_library",
+        "Build and link SDL into the application (default: true)",
+    ) orelse true;
 
-    const sdl_dep = b.dependency("sdl", .{
-        .target = target,
-        .optimize = optimize,
-        .preferred_linkage = c_sdl_preferred_linkage,
-        .strip = c_sdl_strip,
-        .sanitize_c = c_sdl_sanitize_c,
-        .lto = c_sdl_lto,
-        .emscripten_pthreads = c_sdl_emscripten_pthreads,
-        .install_build_config_h = c_sdl_install_build_config_h,
-    });
+    const sdl_dep_lib = if (link_sdl_library) get_sdl_dep_lib: {
+        const sdl_dep = b.dependency("sdl", .{
+            .target = target,
+            .optimize = optimize,
+            .preferred_linkage = c_sdl_preferred_linkage,
+            .strip = c_sdl_strip,
+            .sanitize_c = c_sdl_sanitize_c,
+            .lto = c_sdl_lto,
+            .emscripten_pthreads = c_sdl_emscripten_pthreads,
+            .install_build_config_h = c_sdl_install_build_config_h,
+        });
 
-    const sdl_dep_lib = sdl_dep.artifact("SDL3");
+        const sdl_dep_lib = sdl_dep.artifact("SDL3");
+
+        break :get_sdl_dep_lib sdl_dep_lib;
+    } else null;
 
     const sdl_image_dep = b.dependency("sdl_image", .{
         .target = target,
@@ -82,8 +91,14 @@ pub fn build(b: *std.Build) !void {
     extension_options.addOption(bool, "image", ext_image);
     // Linking zig-sdl to sdl3, makes the library much easier to use.
     sdl3.addOptions("extension_options", extension_options);
-    sdl3.linkLibrary(sdl_dep_lib);
+    if (sdl_dep_lib) |sdl_native| {
+        sdl3.linkLibrary(sdl_native);
+    }
     if (ext_image) {
+        if (sdl_dep_lib == null) {
+            const fail = b.addFail("Enabling SDL_image extension requires SDL3 to be linked");
+            sdl_image_lib.step.dependOn(&fail.step);
+        }
         sdl3.linkLibrary(sdl_image_lib);
     }
 
